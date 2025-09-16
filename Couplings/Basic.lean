@@ -8,6 +8,68 @@ import Mathlib.MeasureTheory.Integral.Lebesgue.Countable
 import Mathlib.Analysis.SpecialFunctions.Log.ERealExp
 import Mathlib.MeasureTheory.Measure.GiryMonad
 import Mathlib.MeasureTheory.Integral.Lebesgue.Add
+import Mathlib.Topology.UnitInterval
+import Mathlib.MeasureTheory.Constructions.UnitInterval
+import Mathlib.Probability.ProbabilityMassFunction.Basic
+import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import Mathlib.Analysis.Real.OfDigits
+
+abbrev BinarySequence := ℕ → Fin 2
+-- #synth MeasurableSpace BinarySequence
+
+namespace BinarySequence
+open MeasureTheory
+
+noncomputable def expand : unitInterval → BinarySequence :=
+  fun ⟨r, _⟩ => if (r = 1) then (fun _ => 1) else Real.digits (b := 2) r
+
+noncomputable def unexpand (b : BinarySequence) : unitInterval where
+  val := Real.ofDigits (b := 2) b
+  property := Set.mem_Icc.mpr ⟨Real.ofDigits_nonneg b, Real.ofDigits_le_one b⟩
+
+@[simp] theorem expand_unexpand {r : unitInterval} : (expand r).unexpand = r := by
+  rcases r with ⟨v, H⟩
+  rcases Classical.em (v = 1) with (rfl|H')
+  · simp [expand, unexpand, Real.ofDigits, Real.ofDigitsTerm]
+    congr
+    -- 0.1111... = 1
+    sorry
+  · simp [expand, unexpand, H']
+    refine Real.ofDigits_digits Nat.one_lt_two ?_
+    grind
+
+-- refine measurable_iff_comap_le.mpr ?_
+-- apply measurable_generateFrom
+
+def expand_measurable : Measurable expand := by
+  refine measurable_pi_iff.mpr (fun n => ?_)
+  intro S _
+  -- Inelegant
+  -- have HZ : MeasurableSet ((fun x ↦ expand x n) ⁻¹' {0}) := sorry
+  -- have HO : MeasurableSet ((fun x ↦ expand x n) ⁻¹' {1}) := sorry
+  -- have S_cases : S = ∅ ∨ S = {0} ∨ S = {1} ∨ S = {0} ∪ {1} := by
+  --   rcases em (S 0) with (hz|hz) <;> rcases em (S 1) with (ho|ho)
+  --   · right; right; right
+  --     sorry
+  --   · sorry
+  --   · sorry
+  --   · sorry
+
+  -- unfold expand
+  -- -- Preimage of each coordinate is a measurable subset of the unit interval
+  sorry
+
+@[simp] noncomputable def uniformIntervalSequences : Measure BinarySequence :=
+  volume.map expand
+
+@[simp] noncomputable def BernHalf : Measure Bool :=
+  PMF.bernoulli _ (NNReal.half_le_self _) |>.toMeasure
+
+-- theorem uniformIntervalSequences.project_bern i :
+--     uniformIntervalSequences.map (· i) = BernHalf := by
+--   sorry
+
+end BinarySequence
 
 def BoundedFunction {α : Type _} (f : α → ENNReal) : Prop :=
   ∀ a, f a ≤ 1
@@ -45,7 +107,26 @@ theorem ARCoupling.dirac {F : ENNReal → ENNReal} {a : α} {b : β} (HF : ∀ {
   rw [lintegral_dirac' _ Hf, lintegral_dirac' _ Hg]
   exact Hle H
 
+-- TODO: Perhaps show that couplings lift when two things are measure_eq
+-- Define follow lintergal_map for this proof
+
 end ApproximateCoupling
+
+noncomputable section BinaryCoupling
+
+open BinarySequence
+
+@[simp] def ARCoupling.binary_eqv : Set (BinarySequence × unitInterval) :=
+  fun ⟨b, r⟩ => b.unexpand = r
+
+theorem ARCoupling.binary : ARCoupling id binary_eqv uniformIntervalSequences volume := by
+  intro ⟨_, Hfm, _⟩ _ HS; simp only [uniformIntervalSequences, id_eq]
+  rw [lintegral_map Hfm expand_measurable]
+  refine lintegral_mono (fun _ => ?_)
+  apply HS
+  simp
+
+end BinaryCoupling
 
 noncomputable section DPCoupling
 
